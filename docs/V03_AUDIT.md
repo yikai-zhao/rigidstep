@@ -9,7 +9,7 @@ This report uses a set of predeclared, synthetic meter-scale workloads and expli
 1. **Correctness / geometry.** The new `closest_segment_points` handles interior, endpoint, parallel and degenerate segments. Tests include 600 seeded segment-swap / range invariants, 100 independent sampled-grid lower-bound checks and 800 seeded rotated-box arrangements that hit both SAT face and edge branches. A new `collision_contacts()` API returns read-only, labeled contact points and normals for inspector tools. One concrete bug was corrected: a deeply immersed oriented box could emit eight ground vertex contacts; the constraint count is now capped to four per box/plane pair.
 2. **Default-path regression.** The old V0.2 solver file is archived as `benchmarks/legacy-v02/physics.cpp`. With **both new experiments off**, six scene/seed combinations match the archived V0.2 solver in *every physical body state and pre-solve energy/contact metric at every one of 181 ticks* (1,086 state pairs). The new solver hash intentionally differs because it includes additional experimental settings and cache state. This is same-host and same-compiler behavior preservation, **not** a ground-truth physics oracle.
 3. **Warm-start on/off.** Run 36 complete pairs (72 trajectories): the original fixed-seed panel and a separate set of **disjoint holdout seeds and sizes**, both with 2/4 impulse iterations. Every pair shares initial conditions; all traces are checked for missing frames, non-finite state, cache-count impossibilities and actual warm impulse reuse. The metrics are tail kinetic energy, center-of-mass vertical standard deviation, and floor penetration. Results are **mixed**: some stacks benefit while others become more active or less stable. No universal stabilization is claimed. Warm Starting remains `off` by default.
-4. **Edge witness on/off.** Run 12 complete pairs with the same seed and scene. **Only six pairs were eligible**, because the other six did not exercise a SAT cross-axis edge contact at all. In the eligible pairs there are both positive and negative tail center-height variance differences. This is precisely why `--edge-contact on` is opt-in until an independent reference and an expanded corner-case corpus exist.
+4. **Edge witness on/off.** Run 12 complete pairs with the same seed and scene. **Only six pairs were eligible**, because the other six did not exercise a SAT cross-axis edge contact at all. All six non-eligible controls matched **every serialized physical-body frame** between the settings; comparing the engine state hash itself would be invalid because it intentionally includes the edge setting flag. In the eligible pairs there are both positive and negative tail center-height variance differences. This is precisely why `--edge-contact on` is opt-in until an independent reference and an expanded corner-case corpus exist.
 
 ## 2. Reproduction (Linux, CMake C++20 and Python standard library)
 
@@ -19,10 +19,12 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 
 # Same-compiler archived cold-path regression
-c++ -std=c++20 -O2 -I include apps/rigidstep.cpp \
+c++ -std=c++20 -O2 -DRIGIDSTEP_BUILD_LEGACY=1 -I include apps/rigidstep.cpp \
   benchmarks/legacy-v02/physics.cpp -o build/rigidstep-v02
+c++ -std=c++20 -O2 -I include apps/rigidstep.cpp \
+  src/physics.cpp -o build/rigidstep-candidate-o2
 python3 scripts/verify_cold_regression.py \
-  --baseline build/rigidstep-v02 --candidate build/rigidstep \
+  --baseline build/rigidstep-v02 --candidate build/rigidstep-candidate-o2 \
   --output lab-output/cold-regression.json
 
 # Fixed-seed and holdout, randomized alternating on/off order

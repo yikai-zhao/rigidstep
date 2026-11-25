@@ -11,7 +11,7 @@ All measurements use synthetic meter-scale scenes and standard C++20, not Roblox
 - Archived V0.2 same-compiler cold regression: **6 cases × 181 physical-state frames (1,086 matched)** exactly equal, while new settings off. Different state-hash schemas are intentionally not compared.
 - Read-only collision-geometry query: stochastic rotated-box SAT edge and face feature coverage; 600 randomized segment symmetry/range tests plus 100 sampled-grid lower-bound checks. Deep-plane box contact cap tested.
 - Warm-start panel and disjoint-seed/size holdout: **36 complete pairs / 72 trajectories**, 300 frames each, tail 100. Warm start improved the center-height-variance metric in **11/36 pairs**, worsened it in **25/36**; other kinetic/penetration outcomes are mixed. **Keep off by default.**
-- SAT edge-witness ablation: **12 complete pairs**, but **only 6 physically eligible pairs** saw edge features; center-height variability improved in **3/6** and worsened in **3/6**. **Keep off by default.**
+- SAT edge-witness ablation: **12 complete pairs**, but **only 6 physically eligible pairs** saw edge features; center-height variability improved in **3/6** and worsened in **3/6**. All 6 noneligible pairs had identical **full physical-body trajectories**, using canonical serialization rather than the configuration-sensitive engine state hash. **Keep off by default.**
 - 121-frame, 14-body bundled contact-overlay sample passes the strict structural trace validator.
 
 ## Artifacts and provenance

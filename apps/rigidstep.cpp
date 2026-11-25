@@ -99,6 +99,7 @@ void emit_frame(std::ostream& f,std::size_t tick,const World& w,const StepStats&
         f<<'}';
     }
     f<<']';
+#ifndef RIGIDSTEP_BUILD_LEGACY
     if(contact_overlay) {
         // These geometry probes are evaluated at the *serialized end-of-step*
         // configuration. They are deliberately distinct from pre-solve StepStats.
@@ -114,6 +115,11 @@ void emit_frame(std::ostream& f,std::size_t tick,const World& w,const StepStats&
         }
         f<<']';
     }
+#else
+    // The archived V0.2 solver intentionally has no read-only manifold API.
+    // Never call it from the same CLI shell when building the regression oracle.
+    (void)contact_overlay;
+#endif
     f<<"}\n";
 }
 double percentile(std::vector<double> data,double fraction) {

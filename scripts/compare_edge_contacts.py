@@ -35,13 +35,23 @@ def one_run(exe, scene, size, seed, enabled, frames, tail):
                    [v for b in r['bodies'] for v in b['p'] + b['v'] + b['q']]):
             raise RuntimeError('non-finite simulation')
     last = data[-tail:]
+    # Engine state hashes intentionally include the experimental setting flag.
+    # Compare serialized physical *body states* for unaffected-scene parity.
+    frames_body_hash = hashlib.sha256(
+        ''.join(json.dumps(r['bodies'], sort_keys=True, separators=(',', ':')) + '\n'
+                for r in data).encode('utf8')).hexdigest()
+    last_body_hash = hashlib.sha256(
+        json.dumps(data[-1]['bodies'], sort_keys=True, separators=(',', ':')).encode('utf8')
+    ).hexdigest()
     return {'scene': scene, 'bodies': size, 'seed': seed,
             'edge_witness': 'on' if enabled else 'off',
             'edge_contacts_total': sum(r['edge_contacts'] for r in data),
             'median_tail_kinetic': median(r['energy'] for r in last),
             'com_height_std': pstdev(mean(b['p'][1] for b in r['bodies']) for r in last),
             'median_max_penetration': median(r['max_penetration'] for r in last),
-            'final_hash': data[-1]['hash']}, data[0]['bodies']
+            'final_hash': data[-1]['hash'],
+            'final_body_sha256': last_body_hash,
+            'all_frames_body_sha256': frames_body_hash}, data[0]['bodies']
 
 
 def main():
@@ -81,6 +91,10 @@ def main():
                     eligible = False
                 else:
                     eligible = True
+                same_physics = (pair['off']['all_frames_body_sha256'] ==
+                                pair['on']['all_frames_body_sha256'])
+                if not eligible and not same_physics:
+                    raise RuntimeError('no edge geometry exercised yet body trajectories diverged')
                 comparisons.append({
                     'scene': scene, 'bodies': size, 'seed': seed,
                     'eligible_edge_contacts': eligible,
@@ -89,7 +103,8 @@ def main():
                     'delta_median_kinetic': pair['on']['median_tail_kinetic'] - pair['off']['median_tail_kinetic'],
                     'delta_com_height_std': pair['on']['com_height_std'] - pair['off']['com_height_std'],
                     'delta_median_max_penetration': pair['on']['median_max_penetration'] - pair['off']['median_max_penetration'],
-                    'final_hash_equal': pair['off']['final_hash'] == pair['on']['final_hash']
+                    'physical_trajectory_equal': same_physics,
+                    'final_body_equal': pair['off']['final_body_sha256'] == pair['on']['final_body_sha256']
                 })
     for name, values in [('results.csv', rows), ('pairs.csv', comparisons)]:
         with (out/name).open('w', newline='', encoding='utf8') as f:

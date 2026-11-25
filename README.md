@@ -68,7 +68,7 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 - **Read-only `collision_contacts()`** supports geometry debugging; a `--contact-overlay on` trace includes normalized contact vectors, feature classes and points. The HTML viewer displays these recorded vectors, but **is not a real-time GPU renderer**.
 - **Adversarial correctness audit:** a fully submerged box previously emitted up to eight ground constraints. It now emits at most four; this fixes a documented mismatch, not necessarily general stability.
 - **Cold behavior regression:** six scene/seed cases × 181 frames matched the archived V0.2 body's exact serialized state and step diagnostics when new options are off. Source and data provenance are recorded.
-- **Multi-variant ablation:** 36 complete warm-start pairs across training and independently chosen holdout seeds/sizes, plus 12 edge-witness pairs (only six had actual edge features). The outcomes are mixed; **no blanket physical-accuracy or performance improvement is claimed**.
+- **Multi-variant ablation:** 36 complete warm-start pairs across training and independently chosen holdout seeds/sizes, plus 12 edge-witness pairs (only six had actual edge features; the other six were proven exactly trajectory-invariant). The outcomes are mixed; **no blanket physical-accuracy or performance improvement is claimed**.
 
 **Commands:** `--warm-start on|off`, `--edge-contact on|off`, and `--contact-overlay on|off` (default off). Details, re-run commands and counterexamples: [V0.3 Audit](docs/V03_AUDIT.md). All raw summary CSVs and source/binary SHA-256 identities are in `evidence/`.
 
