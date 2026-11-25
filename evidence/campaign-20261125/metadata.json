@@ -1,0 +1,40 @@
+{
+  "scope": "single-machine, synthetic scenes, fixed seeds; exploratory full-step timing",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "processor": "",
+  "python": "3.13.5",
+  "binary_sha256": "a4ce5524717f1d7c70d39ed4daff98b8eba8128976326881cf851332472c57a7",
+  "frames": 120,
+  "repeats_per_seed": 4,
+  "seeds": [
+    3,
+    11,
+    27
+  ],
+  "results": {
+    "rain-120": {
+      "pairs": 12,
+      "paired_median_brute_over_sap": 1.0578,
+      "min": 1.0211,
+      "max": 1.1466
+    },
+    "sparse-300": {
+      "pairs": 12,
+      "paired_median_brute_over_sap": 1.2013,
+      "min": 1.1727,
+      "max": 1.3418
+    },
+    "stack-100": {
+      "pairs": 12,
+      "paired_median_brute_over_sap": 0.9978,
+      "min": 0.9803,
+      "max": 1.0562
+    }
+  },
+  "csv_sha256": "458bb9fbb2ffc48c91a2909233721303a85cf0f1cfacbacee6b30f8305c9698b",
+  "caveats": [
+    "same host; no CPU affinity/frequency controls",
+    "same seeds and scene types",
+    "timings include scheduler interference; no engine-wide speedup claim"
+  ]
+}

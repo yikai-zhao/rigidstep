@@ -1,0 +1,35 @@
+name: C++ correctness
+on:
+  push:
+  pull_request:
+jobs:
+  gcc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+      - name: Compile
+        run: cmake --build build --parallel 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke demo and benchmark
+        run: |
+          ./build/rigidstep demo --bodies 16 --frames 50 --out /tmp/rigidstep-smoke.jsonl
+          python3 scripts/verify_trace.py /tmp/rigidstep-smoke.jsonl
+          ./build/rigidstep benchmark --scene sparse --bodies 36 --frames 15 --repeats 1 --out /tmp/rigidstep-bench.csv
+          python3 scripts/benchmark_report.py /tmp/rigidstep-bench.csv
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DRIGIDSTEP_SANITIZERS=ON
+      - run: cmake --build build-asan --parallel 2
+      - run: ctest --test-dir build-asan --output-on-failure
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build --config Release --parallel 2
+      - run: ctest --test-dir build -C Release --output-on-failure

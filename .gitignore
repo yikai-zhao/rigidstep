@@ -1,0 +1,10 @@
+/build/
+/build-*/
+/output/
+*.jsonl
+*.csv
+*.profraw
+*.profdata
+.DS_Store
+__pycache__/
+!viewer/demo.jsonl
