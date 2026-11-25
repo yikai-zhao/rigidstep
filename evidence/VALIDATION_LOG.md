@@ -7,3 +7,5 @@ The predeclared 3-scene × 3-seed × 4-repeat broadphase campaign generated 72 t
 Original V0.1 seven-pair reports are retained as historical observations rather than overwritten. They are different source versions; compare them only as context, not a controlled performance regression/speedup.
 
 **Still unverified:** interactive viewer browser test, hosted Windows/Linux CI status until externally checked, independent collision/solver reference physics, and mobile/console GPU behaviour. Details: [`docs/ROUND2_VALIDATION.md`](../docs/ROUND2_VALIDATION.md).
+
+An additional **18-trace** same-seed, same-stack numerical ablation of historical single-point vs face-clipped OBB contacts found mixed stability results. See [`docs/MANIFOLD_ABLATION.md`](../docs/MANIFOLD_ABLATION.md) and raw summary CSV; do **not** describe the contact patch as a proven all-workload stability enhancement.

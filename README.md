@@ -1,5 +1,7 @@
 # RigidStep
 
+[![C++ correctness](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml/badge.svg)](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml)
+
 **Real-time C++20 3D rigid-body physics and performance lab.** A small, readable simulation core with sphere/rotated-box collision handling, a fixed-timestep sequential-impulse solver, replayable state traces, an offline 3D projection viewer, and measured broadphase trade-offs.
 
 **Why this exists:** Real-time physics engines must trade numerical stability, frame-time budgets, collision-query cost, and deterministic testability. RigidStep builds and measures a concrete subset of that problem rather than wrapping an existing game engine and calling it original engine work.
@@ -52,6 +54,7 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 - `--sphere-plane-ccd on` enables a **limited** sphere sweep against the highest infinite horizontal plane. A 400 m/s negative control visibly crosses the ground with discrete collision alone; the optional sweep prevents penetration and reflects velocity in this controlled example. This is not general box/mesh/sphere CCD or a robust all-object event scheduler.
 - Expanded input-finiteness checks and 15 local test suites, including rotated contact stress, high-speed negative/positive controls and CCD replay.
 - The [round-2 numerical audit](docs/ROUND2_VALIDATION.md) records the testing scope and observed performance trade-offs.
+- A separate **single-point vs four-point** [stack stability ablation](docs/MANIFOLD_ABLATION.md), across three seeds and three scene sizes, returned **mixed** results. Face clipping improved one tested large-stack motion proxy, but did not consistently improve kinetic energy, center-of-mass variability or floor penetration in smaller stacks. No general stability/accuracy improvement is claimed.
 
 ## Measured performance — no cherry-picking
 
@@ -103,6 +106,7 @@ The browser-based viewer is an offline **trace viewer**, not a runtime native GP
 
 - [Architecture, governing equations and solver compromises](docs/ARCHITECTURE.md)
 - [Benchmark protocol, data integrity and open caveats](docs/BENCHMARK_METHOD.md)
+- [Mixed-results face-manifold ablation](docs/MANIFOLD_ABLATION.md)
 - [Engineering roadmap for engine-level competitiveness](docs/ROADMAP.md)
 
 ## License

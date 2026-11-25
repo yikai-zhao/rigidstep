@@ -1,0 +1,25 @@
+{
+  "test": "v0.1 single-point vs v0.2 face-clipped OBB stack ablation",
+  "baseline_source_sha256": "3bf11de14ca054552770f518d6010a14c5057a2d1b904f3075cd0a3f66cb2232",
+  "candidate_source_sha256": "15bdf85f2b0065279a21bab62ccd11249d5a0e656b1fe8fde90a1765a5253b35",
+  "seeds": [
+    3,
+    11,
+    27
+  ],
+  "sizes": [
+    32,
+    64,
+    120
+  ],
+  "frames": 600,
+  "tail": 240,
+  "csv_sha256": "d479bbac2cc3c3f4ea8c641cd89425764e224f66cbf62d7649748ce6fc1edc86",
+  "limitations": [
+    "single host",
+    "three fixed seeds",
+    "the solver remains approximate",
+    "not a calibrated physical truth test",
+    "not a performance benchmark"
+  ]
+}

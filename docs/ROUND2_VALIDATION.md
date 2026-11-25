@@ -2,7 +2,7 @@
 
 ## Scope
 
-This is a reproducible **local development** result, not a production-game-engine benchmark. The baseline V0.1 had one support-point OBB/OBB contact. V0.2 adds SAT face clipping to up to four points, plus **opt-in** downward sphere sweep against the highest horizontal ground plane. The solver, penetration bias, restitution, and friction remain approximate. The new contact patch has not yet been validated against an independent reference physics engine or compared quantitatively for long-term stack stability.
+This is a reproducible **local development** result, not a production-game-engine benchmark. The baseline V0.1 had one support-point OBB/OBB contact. V0.2 adds SAT face clipping to up to four points, plus **opt-in** downward sphere sweep against the highest horizontal ground plane. The solver, penetration bias, restitution, and friction remain approximate. The new contact patch has not yet been validated against an independent reference physics engine. An exploratory 18-trace baseline ablation found mixed long-horizon stack stability outcomes, documented separately at [`MANIFOLD_ABLATION.md`](MANIFOLD_ABLATION.md).
 
 ## Positive/negative tests
 
