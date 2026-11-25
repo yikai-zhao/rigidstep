@@ -37,6 +37,7 @@ struct Contact {
     std::size_t a{}, b{};
     Vec3 n{}, point{}, tangent_impulse{};
     double penetration{}, normal_impulse{}, bounce_target{};
+    ContactFeature feature{ContactFeature::SphereSphere};
 };
 
 bool overlap(const Aabb& a, const Aabb& b) {
@@ -52,6 +53,7 @@ bool collide_spheres(const Body& a, const Body& b, Contact& c) {
     if (d2 >= r*r) return false;
     const double d = std::sqrt(d2);
     c.n = d > epsilon ? delta/d : Vec3{1,0,0};
+    c.feature=ContactFeature::SphereSphere;
     c.penetration = r-d;
     c.point = a.position + c.n*(a.radius-c.penetration*0.5);
     return true;
@@ -59,6 +61,7 @@ bool collide_spheres(const Body& a, const Body& b, Contact& c) {
 
 // c.n always points from sphere to box; a sphere fully inside a box is pushed out.
 bool collide_sphere_box(const Body& sphere, const Body& box, Contact& c) {
+    c.feature=ContactFeature::SphereBox;
     const Vec3 local = box.rotation.inverse_rotate(sphere.position-box.position);
     const Vec3 closest = clamp_vec(local,-box.half_extents,box.half_extents);
     Vec3 outward = local-closest;
@@ -89,7 +92,7 @@ bool collide_sphere_box(const Body& sphere, const Body& box, Contact& c) {
 // side planes, retaining up to four spread-out points. Cross-axis cases fall
 // back to a single approximate contact, which remains a documented limitation.
 void collide_boxes(const Body& a, const Body& b, std::size_t ai, std::size_t bi,
-                   std::vector<Contact>& out) {
+                   std::vector<Contact>& out, bool precise_edges) {
     const Vec3 delta=b.position-a.position;
     const Vec3 pa[]={a.rotation.rotate(axes[0]),a.rotation.rotate(axes[1]),a.rotation.rotate(axes[2])};
     const Vec3 pb[]={b.rotation.rotate(axes[0]),b.rotation.rotate(axes[1]),b.rotation.rotate(axes[2])};
@@ -122,7 +125,30 @@ void collide_boxes(const Body& a, const Body& b, std::size_t ai, std::size_t bi,
         if(!test_axis(cross(pa[i],pb[j]),6+3*i+j)) return;
     auto fallback=[&]() {
         Contact c{};c.a=ai;c.b=bi;c.n=min_axis;c.penetration=min_depth;
-        c.point=(support(a,c.n)+support(b,-c.n))*0.5;
+        c.feature=feature>=6?ContactFeature::BoxEdge:ContactFeature::BoxFace;
+        if(feature>=6 && precise_edges) {
+            // SAT cross product is an edge/edge axis. Choose the two most
+            // extreme *support edges*, then use segment closest points rather
+            // than arbitrary support vertices (old approximation).
+            const int edge_a=(feature-6)/3, edge_b=(feature-6)%3;
+            Vec3 center_a=a.position,center_b=b.position;
+            for(int k=0;k<3;++k) {
+                if(k!=edge_a)
+                    center_a+=pa[k]*(component(a.half_extents,k)*
+                                        (dot(pa[k],min_axis)>=0?1.0:-1.0));
+                if(k!=edge_b)
+                    center_b+=pb[k]*(component(b.half_extents,k)*
+                                        (dot(pb[k],min_axis)>=0?-1.0:1.0));
+            }
+            const Vec3 da=pa[edge_a]*component(a.half_extents,edge_a);
+            const Vec3 db=pb[edge_b]*component(b.half_extents,edge_b);
+            const auto witness=closest_segment_points(center_a-da,center_a+da,
+                                                      center_b-db,center_b+db);
+            c.point=(witness.on_a+witness.on_b)*0.5;
+        } else {
+            // Safety fallback only for a degenerate clipped face polygon.
+            c.point=(support(a,c.n)+support(b,-c.n))*0.5;
+        }
         out.push_back(c);
     };
     if(feature>=6 || feature<0) {fallback();return;}
@@ -178,6 +204,7 @@ void collide_boxes(const Body& a, const Body& b, std::size_t ai, std::size_t bi,
         if(depth<-1e-6) continue;
         Contact c{};c.a=ai;c.b=bi;c.n=min_axis;
         c.penetration=std::max(0.0,depth);
+        c.feature=ContactFeature::BoxFace;
         c.point=p+normal*(depth*0.5);
         bool duplicate=false;
         for(const auto& prior:manifold) {
@@ -216,8 +243,14 @@ void ground_contacts(const Body& plane, const Body& b, std::size_t pi,
     const double height=plane.position.y;
     if (b.shape==Shape::Sphere) {
         const double depth=height-(b.position.y-b.radius);
-        if (depth>0) out.push_back({pi,bi,{0,1,0},{b.position.x,height,b.position.z},{},depth});
+        if (depth>0) {
+            Contact c{};c.a=pi;c.b=bi;c.n={0,1,0};
+            c.point={b.position.x,height,b.position.z};c.penetration=depth;
+            c.feature=ContactFeature::Ground;
+            out.push_back(c);
+        }
     } else if (b.shape==Shape::Box) {
+        const auto start=out.size();
         // Up to four bottom-support candidates. Duplicate projected vertices are
         // intentionally suppressed for axis-aligned boxes in a stable order.
         for (int x : {-1,1}) for (int y : {-1,1}) for (int z : {-1,1}) {
@@ -231,18 +264,33 @@ void ground_contacts(const Body& plane, const Body& b, std::size_t pi,
                 const Vec3 diff=existing.point-on_plane;
                 if(dot(diff,diff)<1e-12) {duplicate=true;break;}
             }
-            if(!duplicate) out.push_back({pi,bi,{0,1,0},on_plane,{},height-p.y});
+            if(!duplicate) {
+                Contact c{};c.a=pi;c.b=bi;c.n={0,1,0};
+                c.point=on_plane;c.penetration=height-p.y;
+                c.feature=ContactFeature::Ground;
+                out.push_back(c);
+            }
+        }
+        // A completely submerged box can have 8 vertices below the plane.
+        // Limit this *one body/plane pair* to its four deepest constraints;
+        // do not accumulate 8 impulses against the same static surface.
+        if(out.size()-start>4) {
+            std::stable_sort(out.begin()+static_cast<std::ptrdiff_t>(start),out.end(),
+                             [](const Contact& lhs,const Contact& rhs) {
+                                 return lhs.penetration>rhs.penetration;
+                             });
+            out.resize(start+4);
         }
     }
 }
 
-std::vector<Contact> contacts_for(std::vector<Body>& bodies, Broadphase mode,
-                                  std::size_t& candidate_count) {
+std::vector<Contact> contacts_for(const std::vector<Body>& bodies, Broadphase mode,
+                                  std::size_t& candidate_count, bool precise_edges) {
     std::vector<Contact> out;
     const auto candidates=broadphase_pairs(bodies,mode);
     candidate_count=candidates.size();
     for (const auto& pair:candidates) {
-        Body& a=bodies[pair.a]; Body& b=bodies[pair.b];
+        const Body& a=bodies[pair.a]; const Body& b=bodies[pair.b];
         if (a.shape==Shape::Plane || b.shape==Shape::Plane) continue;
         Contact c{}; c.a=pair.a; c.b=pair.b;
         bool hit=false;
@@ -252,7 +300,7 @@ std::vector<Contact> contacts_for(std::vector<Body>& bodies, Broadphase mode,
             hit=collide_sphere_box(b,a,c); c.n=-c.n;
         }
         if(a.shape==Shape::Box && b.shape==Shape::Box) {
-            collide_boxes(a,b,pair.a,pair.b,out);
+            collide_boxes(a,b,pair.a,pair.b,out,precise_edges);
         } else if(hit) out.push_back(c);
     }
     for(std::size_t i=0;i<bodies.size();++i) {
@@ -313,6 +361,29 @@ void hash_u64(std::uint64_t& h, std::uint64_t v) {
 }
 void hash_double(std::uint64_t& h, double v) {hash_u64(h,std::bit_cast<std::uint64_t>(v));}
 } // namespace
+
+// This is the clamped Ericson segment-segment minimizer. No normalization
+// by near-zero segment length, and the parallel branch is deterministic.
+SegmentWitness closest_segment_points(Vec3 a0,Vec3 a1,Vec3 b0,Vec3 b1) {
+    const Vec3 d1=a1-a0,d2=b1-b0,r=a0-b0;
+    const double a=dot(d1,d1),e=dot(d2,d2),f=dot(d2,r);
+    double s=0,t=0;
+    constexpr double tiny=1e-20;
+    if(a<=tiny && e<=tiny) return {a0,b0};
+    if(a<=tiny) t=std::clamp(f/e,0.0,1.0);
+    else {
+        const double c=dot(d1,r);
+        if(e<=tiny) s=std::clamp(-c/a,0.0,1.0);
+        else {
+            const double b=dot(d1,d2),denom=a*e-b*b;
+            if(denom>tiny*std::max(a*e,1.0)) s=std::clamp((b*f-c*e)/denom,0.0,1.0);
+            t=(b*s+f)/e;
+            if(t<0) {t=0;s=std::clamp(-c/a,0.0,1.0);}
+            else if(t>1) {t=1;s=std::clamp((b-c)/a,0.0,1.0);}
+        }
+    }
+    return {a0+d1*s,b0+d2*t};
+}
 
 double norm(Vec3 v) {return std::sqrt(dot(v,v));}
 Vec3 normalized(Vec3 v, Vec3 fallback) {const double l=norm(v);return l>epsilon?v/l:fallback;}
@@ -396,6 +467,7 @@ std::uint32_t World::add_sphere(Vec3 p,double r,double mass,Vec3 velocity,double
     b.restitution=std::clamp(restitution,0.0,1.0);
     const double i=mass>0?2.5/(mass*r*r):0;
     b.inv_inertia_local={i,i,i};
+    contact_cache_.clear();
     bodies_.push_back(b);return b.id;
 }
 std::uint32_t World::add_box(Vec3 p,Vec3 h,double mass,Quat q,Vec3 velocity,double restitution) {
@@ -412,6 +484,7 @@ std::uint32_t World::add_box(Vec3 p,Vec3 h,double mass,Quat q,Vec3 velocity,doub
     if(mass>0) b.inv_inertia_local={3/(mass*(h.y*h.y+h.z*h.z)),
                                   3/(mass*(h.x*h.x+h.z*h.z)),
                                   3/(mass*(h.x*h.x+h.y*h.y))};
+    contact_cache_.clear();
     bodies_.push_back(b);return b.id;
 }
 std::uint32_t World::add_ground(double height) {
@@ -419,7 +492,19 @@ std::uint32_t World::add_ground(double height) {
     Body b;
     b.id=std::uint32_t(bodies_.size());b.shape=Shape::Plane;
     b.position={0,height,0};b.friction=0.8;b.restitution=0;
+    contact_cache_.clear();
     bodies_.push_back(b);return b.id;
+}
+std::vector<ContactDebug> World::collision_contacts() const {
+    std::size_t unused=0;
+    const auto contacts=contacts_for(bodies_,settings_.broadphase,unused,settings_.precise_edge_contacts);
+    std::vector<ContactDebug> result;
+    result.reserve(contacts.size());
+    for(const auto& c:contacts) {
+        result.push_back({static_cast<std::uint32_t>(c.a),static_cast<std::uint32_t>(c.b),
+                          c.n,c.point,c.penetration,c.feature});
+    }
+    return result;
 }
 StepStats World::step() {
     const double dt=settings_.dt;
@@ -449,17 +534,77 @@ StepStats World::step() {
         if(w>epsilon) b.rotation=(Quat::from_axis_angle(b.angular_velocity/w,w*dt)*b.rotation).normalized();
     }
     std::size_t candidates=0;
-    auto cs=contacts_for(bodies_,settings_.broadphase,candidates);
+    auto cs=contacts_for(bodies_,settings_.broadphase,candidates,settings_.precise_edge_contacts);
     double max_depth=0;
+    std::size_t edge_count=0,face_count=0;
     for(auto& c:cs) {
+        edge_count+=c.feature==ContactFeature::BoxEdge;
+        face_count+=c.feature==ContactFeature::BoxFace;
         max_depth=std::max(max_depth,c.penetration);
         const Body& a=bodies_[c.a];const Body& b=bodies_[c.b];
         const Vec3 relative=velocity_at(b,c.point-b.position)-velocity_at(a,c.point-a.position);
         const double approach=dot(relative,c.n);
         if(approach<-0.5) c.bounce_target=-approach*std::max(a.restitution,b.restitution);
     }
+    // Warm-start contact constraints using stable body-local anchors, rather
+    // than transient clipped polygon slot indices. Every prior contact can be
+    // matched at most once, and only when both anchors and the normal agree.
+    std::size_t matched=0, warm_applied=0;
+    if(settings_.warm_starting) {
+        std::vector<bool> used(contact_cache_.size(),false);
+        constexpr double match_distance_sq=0.10*0.10; // world units; scope is meter-scale scenes
+        for(auto& c:cs) {
+            const Body& a=bodies_[c.a];const Body& b=bodies_[c.b];
+            const Vec3 la=a.rotation.inverse_rotate(c.point-a.position);
+            const Vec3 lb=b.rotation.inverse_rotate(c.point-b.position);
+            std::size_t best=contact_cache_.size();
+            double nearest=2.0*match_distance_sq;
+            for(std::size_t i=0;i<contact_cache_.size();++i) {
+                const auto& old=contact_cache_[i];
+                if(used[i] || old.a!=c.a || old.b!=c.b || dot(old.normal,c.n)<0.95) continue;
+                const Vec3 da=la-old.anchor_a,db=lb-old.anchor_b;
+                const double d1=dot(da,da),d2=dot(db,db);
+                if(d1>match_distance_sq || d2>match_distance_sq) continue;
+                const double score=d1+d2;
+                if(score<nearest) {nearest=score;best=i;}
+            }
+            if(best==contact_cache_.size()) continue;
+            used[best]=true;
+            ++matched;
+            const auto& old=contact_cache_[best];
+            // Bounce events are new impacts, not a quasi-static constraint.
+            if(c.bounce_target>0) continue;
+            // Under-relaxed experimental warm start: full reuse caused
+            // inconsistent dense-stack results in the ablation.
+            c.normal_impulse=0.5*std::max(0.0,old.normal_impulse);
+            c.tangent_impulse=0.5*(old.tangent_impulse-c.n*dot(old.tangent_impulse,c.n));
+            const double mu=std::sqrt(a.friction*b.friction)*c.normal_impulse;
+            const double tangent_len=norm(c.tangent_impulse);
+            if(tangent_len>mu && tangent_len>epsilon) c.tangent_impulse*=mu/tangent_len;
+            if(c.normal_impulse<=epsilon && norm(c.tangent_impulse)<=epsilon) continue;
+            const Vec3 j=c.n*c.normal_impulse+c.tangent_impulse;
+            impulse(bodies_[c.a],-j,c.point-bodies_[c.a].position);
+            impulse(bodies_[c.b],j,c.point-bodies_[c.b].position);
+            ++warm_applied;
+        }
+    }
     for(std::size_t iter=0;iter<settings_.solver_iterations;++iter)
         for(auto& c:cs) solve_contact(c,bodies_,dt);
+    // Rebuild from actual solved contacts. Disappeared pairs are evicted each
+    // frame; no unbounded cache, no reuse after separation or a new body add.
+    contact_cache_.clear();
+    if(settings_.warm_starting) {
+        contact_cache_.reserve(cs.size());
+        for(const auto& c:cs) {
+            if(c.normal_impulse<=epsilon) continue;
+            const Body& a=bodies_[c.a];const Body& b=bodies_[c.b];
+            contact_cache_.push_back({static_cast<std::uint32_t>(c.a),
+                static_cast<std::uint32_t>(c.b),
+                a.rotation.inverse_rotate(c.point-a.position),
+                b.rotation.inverse_rotate(c.point-b.position),c.n,c.tangent_impulse,c.normal_impulse});
+        }
+    }
+
     // Conservative, mass-weighted positional stabilization; orientation is not corrected.
     for(const auto& c:cs) {
         auto& a=bodies_[c.a];auto& b=bodies_[c.b];
@@ -477,7 +622,8 @@ StepStats World::step() {
         if(b.inv_inertia_local.y>0) kinetic+=0.5*wlocal.y*wlocal.y/b.inv_inertia_local.y;
         if(b.inv_inertia_local.z>0) kinetic+=0.5*wlocal.z*wlocal.z/b.inv_inertia_local.z;
     }
-    return {candidates,cs.size(),max_depth,kinetic,state_hash()};
+    return {candidates,cs.size(),max_depth,kinetic,state_hash(),matched,warm_applied,
+            contact_cache_.size(),edge_count,face_count};
 }
 std::uint64_t World::state_hash() const {
     std::uint64_t h=14695981039346656037ULL;
@@ -485,6 +631,8 @@ std::uint64_t World::state_hash() const {
     for(double v:{settings_.gravity.x,settings_.gravity.y,settings_.gravity.z}) hash_double(h,v);
     hash_u64(h,settings_.solver_iterations);
     hash_u64(h,settings_.sphere_plane_ccd?1U:0U);
+    hash_u64(h,settings_.warm_starting?1U:0U);
+    hash_u64(h,settings_.precise_edge_contacts?1U:0U);
     for(const auto& b:bodies_) {
         hash_u64(h,b.id); hash_u64(h,std::uint64_t(b.shape));
         for(double value:{b.position.x,b.position.y,b.position.z,
@@ -494,6 +642,16 @@ std::uint64_t World::state_hash() const {
                           b.half_extents.x,b.half_extents.y,b.half_extents.z,b.radius,
                           b.inv_mass,b.restitution,b.friction,
                           b.inv_inertia_local.x,b.inv_inertia_local.y,b.inv_inertia_local.z}) hash_double(h,value);
+    }
+    // Cached impulses affect the next step, so they are part of the replay
+    // state (unlike broadphase choice). This detects a hidden-state mismatch.
+    for(const auto& c:contact_cache_) {
+        hash_u64(h,c.a);hash_u64(h,c.b);
+        for(double v:{c.anchor_a.x,c.anchor_a.y,c.anchor_a.z,
+                      c.anchor_b.x,c.anchor_b.y,c.anchor_b.z,
+                      c.normal.x,c.normal.y,c.normal.z,
+                      c.tangent_impulse.x,c.tangent_impulse.y,c.tangent_impulse.z,
+                      c.normal_impulse}) hash_double(h,v);
     }
     return h;
 }

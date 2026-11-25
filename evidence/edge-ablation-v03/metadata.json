@@ -1,0 +1,32 @@
+{
+  "purpose": "experimental segment-segment edge contact vs old midpoint",
+  "interpretation": "No ground truth engine; motion, energy and penetration are proxies, not physical correctness",
+  "scenes": [
+    "rain",
+    "stack"
+  ],
+  "sizes": [
+    48,
+    96
+  ],
+  "seeds": [
+    3,
+    11,
+    29
+  ],
+  "frames": 300,
+  "tail": 100,
+  "pairs": 12,
+  "eligible_pairs": 6,
+  "positive_edge_contacts_total": 2742,
+  "median_delta_com_height_std_eligible": -6.23468462006907e-05,
+  "positive_delta_count_eligible": 3,
+  "source_sha256": "0695d9990eba5369275c5c261ab8ab57a218cd76248d72351de3e687e645b340",
+  "header_sha256": "919fa09392160aca33f984efcb96a79cd1ebf9433f0edef3b45f5b79c1b62722",
+  "binary_sha256": "69009ec557394b0a8d24d3c647c8d9e2ffc3849ac0bef4d1c7f198d7e1770617",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "files_sha256": {
+    "results.csv": "d45beffd19a7500c8cd546778eff7e78ff8cbb60e9665278edba9540f038dee2",
+    "pairs.csv": "22ff16926538707327c37cd6ad4fd4603281f8acad6385dd03ef0722f995d758"
+  }
+}

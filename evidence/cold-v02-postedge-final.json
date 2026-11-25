@@ -1,0 +1,69 @@
+{
+  "scope": "V0.2 baseline vs V0.3 warm-start off, exact JSON body equality",
+  "baseline_source_sha256": "15bdf85f2b0065279a21bab62ccd11249d5a0e656b1fe8fde90a1765a5253b35",
+  "candidate_source_sha256": "0695d9990eba5369275c5c261ab8ab57a218cd76248d72351de3e687e645b340",
+  "compiler": "both built with -std=c++20 -O2 on the same local system",
+  "limitations": "same-host, source-file archive, does not prove physical accuracy",
+  "results": [
+    {
+      "scene": "rain",
+      "bodies": 40,
+      "seed": 3,
+      "frames_matched": 181,
+      "baseline_hash": "37b0d5d83b7d38f1",
+      "candidate_hash": "affe23280677b671",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    },
+    {
+      "scene": "rain",
+      "bodies": 40,
+      "seed": 17,
+      "frames_matched": 181,
+      "baseline_hash": "726ebc016e149a17",
+      "candidate_hash": "ecdeb3842dd91697",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    },
+    {
+      "scene": "stack",
+      "bodies": 64,
+      "seed": 3,
+      "frames_matched": 181,
+      "baseline_hash": "343e6df39e69c0b",
+      "candidate_hash": "1c4997f80a94848b",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    },
+    {
+      "scene": "stack",
+      "bodies": 64,
+      "seed": 17,
+      "frames_matched": 181,
+      "baseline_hash": "7eabe6cd41a748cb",
+      "candidate_hash": "8966faeed4794f4b",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    },
+    {
+      "scene": "sparse",
+      "bodies": 80,
+      "seed": 3,
+      "frames_matched": 181,
+      "baseline_hash": "8a1515d4f793d8b2",
+      "candidate_hash": "ace163a24922d232",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    },
+    {
+      "scene": "sparse",
+      "bodies": 80,
+      "seed": 17,
+      "frames_matched": 181,
+      "baseline_hash": "707cbed2908a8f8e",
+      "candidate_hash": "1a2c20f615eca90e",
+      "body_state_equal": true,
+      "hash_note": "different schema, not compared"
+    }
+  ]
+}

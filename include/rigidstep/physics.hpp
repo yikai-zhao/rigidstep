@@ -65,18 +65,34 @@ struct Pair {
 [[nodiscard]] Aabb bounds(const Body& b);
 [[nodiscard]] std::vector<Pair> broadphase_pairs(const std::vector<Body>& bodies, Broadphase mode);
 
+// Geometric primitive: shortest segment pair, including degeneracy/parallel cases.
+struct SegmentWitness { Vec3 on_a{}, on_b{}; };
+[[nodiscard]] SegmentWitness closest_segment_points(Vec3 a0, Vec3 a1, Vec3 b0, Vec3 b1);
+
+enum class ContactFeature { SphereSphere, SphereBox, BoxFace, BoxEdge, Ground };
+struct ContactDebug {
+    std::uint32_t a{}, b{};
+    Vec3 normal{}, point{};
+    double penetration{};
+    ContactFeature feature{ContactFeature::SphereSphere};
+};
+
 struct Settings {
     double dt{1.0/120.0};
     Vec3 gravity{0,-9.81,0};
     std::size_t solver_iterations{16};
     Broadphase broadphase{Broadphase::SweepAndPrune};
     bool sphere_plane_ccd{false}; // Optional, limited TOI sweep; not general CCD.
+    bool warm_starting{false}; // Match persistent contact anchors and reuse prior impulses.
+    bool precise_edge_contacts{false}; // Experimental SAT edge closest points; default legacy fallback.
 };
 
 struct StepStats {
     std::size_t candidates{}, contacts{};
     double max_penetration{}, kinetic_energy{};
     std::uint64_t state_hash{};
+    std::size_t matched_contacts{}, warm_started_contacts{}, cached_contacts{};
+    std::size_t edge_contacts{}, face_contacts{};
 };
 
 class World {
@@ -90,11 +106,22 @@ public:
     [[nodiscard]] const std::vector<Body>& bodies() const { return bodies_; }
     [[nodiscard]] std::vector<Body>& bodies() { return bodies_; }
     [[nodiscard]] Settings settings() const { return settings_; }
+    // Call after directly editing the mutable body vector or teleports.
+    void clear_contact_cache() { contact_cache_.clear(); }
+    [[nodiscard]] std::size_t cached_contact_count() const { return contact_cache_.size(); }
+    // Read-only narrowphase diagnostics for interactive visualization and geometry tests.
+    [[nodiscard]] std::vector<ContactDebug> collision_contacts() const;
     [[nodiscard]] StepStats step();
     [[nodiscard]] std::uint64_t state_hash() const;
 private:
     Settings settings_;
     std::vector<Body> bodies_;
+    struct CachedContact {
+        std::uint32_t a{}, b{};
+        Vec3 anchor_a{}, anchor_b{}, normal{}, tangent_impulse{};
+        double normal_impulse{};
+    };
+    std::vector<CachedContact> contact_cache_;
 };
 
 [[nodiscard]] World make_scene(const std::string& name, std::size_t count,

@@ -1,0 +1,134 @@
+{
+  "hypothesis": "Does prior-contact impulse reuse improve low-iteration approximate box/sphere stacks?",
+  "limits": "Not physical ground truth; 3 fixed seeds, synthetic scenes, no strong causality or universal speedup",
+  "seeds": [
+    3,
+    11,
+    27
+  ],
+  "sizes": [
+    24,
+    64,
+    120
+  ],
+  "iterations": [
+    2,
+    4
+  ],
+  "frames": 300,
+  "tail": 100,
+  "python": "3.13.5",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "compiler_info": "c++ (Debian 14.2.0-19) 14.2.0",
+  "source_sha256": "0695d9990eba5369275c5c261ab8ab57a218cd76248d72351de3e687e645b340",
+  "header_sha256": "919fa09392160aca33f984efcb96a79cd1ebf9433f0edef3b45f5b79c1b62722",
+  "binary_sha256": "69009ec557394b0a8d24d3c647c8d9e2ffc3849ac0bef4d1c7f198d7e1770617",
+  "results_sha256": "32dff95cd8683bc0df8f47b64fa7790f1fc30cb8dc59d10b0d4336c3cb8de0a6",
+  "pairs_sha256": "1292491848e855a408909eb3efb22c77318368fe5d8d5defe06ab06173c02b1d",
+  "total_traces": 36,
+  "total_pairs": 18,
+  "summary": {
+    "24-iters2": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": 0.04962924063167251,
+        "on_better_count": 1,
+        "off_better_count": 2
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": 0.0007177583599391742,
+        "on_better_count": 0,
+        "off_better_count": 3
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -0.0001257172596949973,
+        "on_better_count": 3,
+        "off_better_count": 0
+      }
+    },
+    "24-iters4": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": -0.1261519480989728,
+        "on_better_count": 3,
+        "off_better_count": 0
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": 0.00021827540078725016,
+        "on_better_count": 0,
+        "off_better_count": 3
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -4.418743567612474e-05,
+        "on_better_count": 3,
+        "off_better_count": 0
+      }
+    },
+    "64-iters2": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": 13.228245538247762,
+        "on_better_count": 0,
+        "off_better_count": 3
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": 0.00681649522391814,
+        "on_better_count": 1,
+        "off_better_count": 2
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -0.00025316116418361355,
+        "on_better_count": 3,
+        "off_better_count": 0
+      }
+    },
+    "64-iters4": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": -0.6180004301352824,
+        "on_better_count": 2,
+        "off_better_count": 1
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": -0.0016779215343676601,
+        "on_better_count": 2,
+        "off_better_count": 1
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -8.351984285611888e-05,
+        "on_better_count": 3,
+        "off_better_count": 0
+      }
+    },
+    "120-iters2": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": -10.13053212826145,
+        "on_better_count": 2,
+        "off_better_count": 1
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": 0.001319874533067228,
+        "on_better_count": 1,
+        "off_better_count": 2
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -0.0002673915440928687,
+        "on_better_count": 3,
+        "off_better_count": 0
+      }
+    },
+    "120-iters4": {
+      "median_kinetic_on_minus_off": {
+        "median_on_minus_off": 29.969718293639573,
+        "on_better_count": 0,
+        "off_better_count": 3
+      },
+      "com_y_std_on_minus_off": {
+        "median_on_minus_off": -0.0053241729157265105,
+        "on_better_count": 2,
+        "off_better_count": 1
+      },
+      "mean_floor_penetration_on_minus_off": {
+        "median_on_minus_off": -0.0001258172243330973,
+        "on_better_count": 2,
+        "off_better_count": 1
+      }
+    }
+  }
+}

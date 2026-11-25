@@ -1,23 +1,23 @@
-# Roadmap: what would make this an engine-quality project?
+# RigidStep prioritized upgrade roadmap (V0.3)
 
-This list is prioritized by **value of verified engineering evidence**, not number of features. V0.2 now implements limited face clipping and sphere/horizontal-plane TOI, with gaps below still prioritized.
+The goal is a **credible C++ realtime engine engineering portfolio** for graphics/physics/simulation internships. This is a ranking by provable recruiter value, not a feature checklist.
 
-## P0: Correctness before speed claims
+## P0 — external numerical correctness (highest ROI)
 
-1. **Persistent manifolds and edge-edge geometry.** Face clipping (up to 4 contacts) is implemented; still add edge-edge closest-point computation, persistent feature IDs, warm-start caches, resting-stack penetration/drift comparisons and stronger conservation tests.
-2. **General CCD.** Limited sphere-horizontal-plane TOI is implemented with a matching negative control; still add sphere/box and sphere/sphere sweeps, rotating-box cases, overlapping TOI event ordering, and robust multi-impact substepping.
-3. **Differential oracle.** Compare a controlled subset against an independently sourced reference solver for collisions, conservation, and corner cases; document coordinate and integrator differences. An internal SAP-vs-brute check is *not* independent physics validation.
+**Independent oracle against Bullet/Jolt, plus analytic controls:** fix joint scenario inputs, shapes, inertia, friction/restitution, dt and iterations. Compare contact normals, signed separation, collision outcomes, energy/momentum, penetration drift, and preserve **all** disagreement cases. Normalize coordinate-system and solver differences. Our SAP/brute parity and old/new solver self-comparison are not independent physics evidence.
 
-## P1: Data-driven performance engineering
+**Improve solver only when a falsifying case proves the need:** add SAT edge witness feature IDs, stable contact selection, friction tangent basis, split impulse / positional correction as alternatives, and clearly distinguish a model defect from intended soft-contact trade-offs. Maintain opt-in switches and holdouts until consistent results are demonstrated.
 
-4. **Temporal coherence broadphase.** Incremental SAP/insertion-sort vs full re-sort; measure swap count, candidate-pair misses, dense/degenerate cases and full-step budget.
-5. **Persistent warm starting and sleep/island systems.** Measure frames-per-second and resting contacts on several procedural scene families, not one cherry-picked seed.
-6. **Broad stress matrix.** Sizes 50→5,000, low/high density, dynamic/static ratios, multiple random seeds, fixed hardware and microprofile flamegraphs. Include a no-improvement result when applicable.
+## P1 — live renderer and interactive debugging
 
-## P2: Better visual/engine credibility
+Build a native or WASM-powered **live GPU 3D viewport** with the C++ simulation loop, preferably a minimal OpenGL path or portable WebGPU. Expose real per-frame CPU physics time, broadphase AABBs, contact normals, depth, frame-step controls, and cross-engine comparison overlays. Current HTML viewer is a 2D Canvas projection of recorded JSONL, *not* real-time GPU rendering. Treat this as the next large visible portfolio improvement after numerical validation.
 
-7. **Genuine real-time renderer.** Prefer a constrained OpenGL or WebGPU interactive native/portable front-end; visualize contact normals, broadphase boxes and time-step budget. Do not call the current trace viewer GPU rendering.
-8. **Constrained dynamics.** Add distance joints, simple articulated links and a joint solver with stability/constraint-error metrics.
-9. **Portable CI and release packaging.** Confirm Windows + Linux builds, compare floating-point drift across platforms, capture artifacts and release a one-command demo.
+## P2 — real engine scale / dynamics
 
-**Definition of completion:** tests pass, representative raw benchmarks and failure cases are committed, code version and machine are recorded, repeatability is documented, and no headline claims exceed measurement scope.
+- Benchmark dense/sparse/collision-heavy families at 50–5,000 bodies with randomized repetitions, affinity, warm-up, full-step CPU and peak memory. Ensure continuous event correctness and no selectively favorable p99 results.
+- Add spatial/temporal broadphase indexing, sleeping and contact islands, and specifically test wake-up races and determinism.
+- Design a **general** CCD event scheduler for dynamic spheres and boxes (not just current downward sphere-plane TOI) with a clear negative-tunneling matrix.
+- Implement distance joints and one articulated chain with measured constraint drift before broad avatar claims.
+- Ensure Linux/Windows multi-compiler CI, sanitizers, reproducibility and a 60-second visual demo. No employer/customer code.
+
+**Done criteria:** code + raw/evidence-gated tests + negative controls + platform build + a short explanation of where the algorithm fails. Avoid claiming production-grade realism or universal speedups.

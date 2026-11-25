@@ -2,11 +2,11 @@
 
 [![C++ correctness](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml/badge.svg)](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml)
 
-**Real-time C++20 3D rigid-body physics and performance lab.** A small, readable simulation core with sphere/rotated-box collision handling, a fixed-timestep sequential-impulse solver, replayable state traces, an offline 3D projection viewer, and measured broadphase trade-offs.
+**Real-time C++20 3D rigid-body physics and performance lab (V0.3).** A small, readable simulation core with sphere/rotated-box collision handling, a fixed-timestep sequential-impulse solver, replayable state traces, an offline 3D projection viewer, and measured broadphase trade-offs.
 
 **Why this exists:** Real-time physics engines must trade numerical stability, frame-time budgets, collision-query cost, and deterministic testability. RigidStep builds and measures a concrete subset of that problem rather than wrapping an existing game engine and calling it original engine work.
 
-> **Scope:** This is an engine research prototype, **not** Roblox's engine, a high-fidelity physics engine, or a general production simulator. OBB face contact uses clipped manifolds (up to four points), but edge-edge contact remains an approximate single point; **optional CCD handles downward-moving spheres against horizontal ground only**. General CCD, constraints/joints, sleeping, and GPU rendering are not implemented. Benchmarks are one Linux-container observation, not universal performance claims.
+> **Scope:** This is an engine research prototype, **not** Roblox's engine, a high-fidelity physics engine, or a general production simulator. OBB face contact uses clipped manifolds (up to four points), but edge-edge contact remains an approximate single point; **optional CCD handles downward-moving spheres against horizontal ground only**. General CCD, constraints/joints, sleeping, and GPU rendering are not implemented. **Warm starting and exact segment-edge witnesses are experimental opt-ins, not stable improvements.** Benchmarks are one Linux-container observation, not universal performance claims.
 
 ## Quick start (CMake, C++20; no third-party runtime dependencies)
 
@@ -27,13 +27,18 @@ python3 scripts/benchmark_report.py benchmark.csv
 
 # Run a predeclared 3-scene × 3-seed paired performance campaign.
 python3 scripts/run_campaign.py --exe build/rigidstep --output lab-output/campaign
+
+# Reproducible contact-debug trace (recorded, not live rendering)
+./build/rigidstep demo --scene stack --bodies 36 --frames 180 \
+  --edge-contact on --contact-overlay on --out contact-debug.jsonl
+python3 scripts/verify_trace.py contact-debug.jsonl
 ```
 
-On Windows / MSVC, the executable normally lives under `build/Release/`. All core physics is standard C++20; Linux GCC and AddressSanitizer+UBSan were run locally, while Windows cross-platform validation is configured in GitHub Actions and is **pending a successful hosted run**.
+On Windows / MSVC, the executable normally lives under `build/Release/`. All core physics is standard C++20; Linux GCC and AddressSanitizer+UBSan were run locally, while Windows cross-platform validation is run in GitHub Actions (see the live workflow status above).
 
 ## Interactive trace viewer
 
-Run `python3 -m http.server 8000` from the repository root and visit **http://localhost:8000/viewer/**. The page automatically loads a checked-in 14-body demonstration (`viewer/demo.jsonl`). Alternatively open `viewer/index.html` and select any `frames.jsonl` using **Open JSONL trace**. Drag to orbit, scroll to zoom, scrub and pause the timeline. The viewer is a lightweight 3D wireframe/projection *of recorded states*, not a JavaScript physics solver or GPU renderer.
+Run `python3 -m http.server 8000` from the repository root and visit **http://localhost:8000/viewer/**. The page automatically loads a checked-in 14-body demonstration (`viewer/demo.jsonl`). Alternatively open `viewer/index.html` and select any `frames.jsonl` using **Open JSONL trace**. Drag to orbit, scroll to zoom, scrub and pause the timeline. When traces are generated with `--contact-overlay on`, toggle the rendered contact points/normals, with separate pre-solve and end-of-frame counters. The viewer is a lightweight 3D wireframe/projection *of recorded states*, not a JavaScript physics solver or GPU renderer.
 
 ## What is implemented
 
@@ -42,11 +47,11 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 | 3D math | Vec3, quaternion rotation, body-space inertia tensors | Rotation/inverse-rotation and free-flight tests |
 | Body geometry | Dynamic spheres, oriented boxes, infinite horizontal static planes | Sphere/sphere, sphere/OBB, OBB/OBB, ground scenarios |
 | Broadphase | Sweep-and-Prune (SAP) compared with O(n²) brute-force reference | 20 randomized 90-body pair-set oracles; 3×180-tick trajectory parity |
-| Narrowphase | Sphere/sphere, sphere/OBB, 15-axis OBB SAT; face clipping up to 4 contacts, approximate edge contact | Face manifold, rotated overlap, replay tests |
-| Dynamics | Fixed-step semi-implicit Euler, iterative normal/friction impulses, angular motion; limited sphere-plane TOI | Momentum, bounce, finite-energy and high-speed positive/negative controls |
+| Narrowphase | Sphere/sphere, sphere/OBB, 15-axis OBB SAT; face clipping up to 4 contacts, optional edge-segment witness | Face manifold, 800 rotated-box stress samples, segment-sampling oracle |
+| Dynamics | Fixed-step Euler, accumulated normal/friction impulses, angular motion; limited sphere-plane TOI; **experimental half-impulse warm start** | Momentum, bounce, negative/positive CCD controls, deterministic cache replay and on/off ablation |
 | Determinism | Seeded scenes, stable contact ordering, FNV-based state/config hashes (excluding broadphase mode) | Tick-by-tick seeded replays; algorithm parity |
-| Diagnostics | JSONL frame dump; CSV p50/p95/p99/mean step time | Structural trace validator and paired benchmark hash gate |
-| Quality | CTest, GCC/Clang warnings, ASan+UBSan, Linux/Windows CI matrix | Local 15-suite tests; hosted CI only claimed if separately verified |
+| Diagnostics | JSONL frame dump, optional labeled contact points/normals, CSV step-time stats | Structural and finite-normal trace validator, paired hash gate, HTML projection viewer |
+| Quality | CTest, GCC/Clang warnings, ASan+UBSan, Linux/Windows CI matrix | Local 21-suite tests; hosted CI only claimed after verifying the run |
 
 ## V0.2: face manifold + narrowly scoped continuous collision handling
 
@@ -55,6 +60,17 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 - Expanded input-finiteness checks and 15 local test suites, including rotated contact stress, high-speed negative/positive controls and CCD replay.
 - The [round-2 numerical audit](docs/ROUND2_VALIDATION.md) records the testing scope and observed performance trade-offs.
 - A separate **single-point vs four-point** [stack stability ablation](docs/MANIFOLD_ABLATION.md), across three seeds and three scene sizes, returned **mixed** results. Face clipping improved one tested large-stack motion proxy, but did not consistently improve kinetic energy, center-of-mass variability or floor penetration in smaller stacks. No general stability/accuracy improvement is claimed.
+
+## V0.3: experimental persistent contacts, edge-segment witnesses, strict audit
+
+- **Warm-start cache** uses per-contact body-local anchors and normal similarity, matched one-to-one, with a half-impulse initialization and friction re-projection. It is automatically evicted when contacts disappear, manually invalidated on external body mutations and included in the replay hash. It is **off by default** because the warm-start-on/off results are mixed and a predeclared disjoint holdout did not establish broad stability improvement.
+- **Opt-in segment edge witnesses** replace the old support-vertex midpoint on SAT cross-axis contacts with the midpoint of two closest support-edge segment witnesses, handling parallel/degenerate cases. **Off by default** while accuracy remains unvalidated against an independent physics engine.
+- **Read-only `collision_contacts()`** supports geometry debugging; a `--contact-overlay on` trace includes normalized contact vectors, feature classes and points. The HTML viewer displays these recorded vectors, but **is not a real-time GPU renderer**.
+- **Adversarial correctness audit:** a fully submerged box previously emitted up to eight ground constraints. It now emits at most four; this fixes a documented mismatch, not necessarily general stability.
+- **Cold behavior regression:** six scene/seed cases × 181 frames matched the archived V0.2 body's exact serialized state and step diagnostics when new options are off. Source and data provenance are recorded.
+- **Multi-variant ablation:** 36 complete warm-start pairs across training and independently chosen holdout seeds/sizes, plus 12 edge-witness pairs (only six had actual edge features). The outcomes are mixed; **no blanket physical-accuracy or performance improvement is claimed**.
+
+**Commands:** `--warm-start on|off`, `--edge-contact on|off`, and `--contact-overlay on|off` (default off). Details, re-run commands and counterexamples: [V0.3 Audit](docs/V03_AUDIT.md). All raw summary CSVs and source/binary SHA-256 identities are in `evidence/`.
 
 ## Measured performance — no cherry-picking
 
@@ -104,6 +120,7 @@ The browser-based viewer is an offline **trace viewer**, not a runtime native GP
 
 ## Further reading
 
+- [V0.3 experimental solver/geometry audit, holdout controls and provenance](docs/V03_AUDIT.md)
 - [Architecture, governing equations and solver compromises](docs/ARCHITECTURE.md)
 - [Benchmark protocol, data integrity and open caveats](docs/BENCHMARK_METHOD.md)
 - [Mixed-results face-manifold ablation](docs/MANIFOLD_ABLATION.md)

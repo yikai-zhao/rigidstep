@@ -12,9 +12,10 @@ Each step is the same `dt = 1/120` seconds by default:
 2. If limited sphere-plane CCD is enabled, handle downward sphere/plane time-of-impact within the integrated step; otherwise update position `x += v dt`. Update orientation `q <- normalize(exp(ω dt) q)`.
 3. Create AABBs for the current rotated geometry.
 4. Compute potentially overlapping body pairs with either Sweep-and-Prune (sort on min X, early exit by max X, then check Y/Z) or brute-force O(n²) overlap checks. The planes are special-case contacts and excluded from finite AABB broadphase.
-5. Generate sphere/sphere, sphere/oriented-box or rotated-box/rotated-box SAT contacts and static plane contacts. Box-box SAT checks 3+3 face axes plus 9 cross-product axes; near-zero cross axes are ignored. Face contacts use Sutherland–Hodgman clipping against reference side planes followed by deterministic reduction to four spread points; cross-axis edge contact uses an approximate single midpoint.
-6. Solve normal and tangential contact impulses for a fixed number of iterations, applying angular Jacobian terms. Normal impulses are accumulated and projected to `>= 0`; friction impulses are projected to a Coulomb cone approximation `|jt| <= sqrt(μa μb) jn`. A velocity-level penetration bias and small mass-weighted positional correction help avoid sinking.
-7. Emit summary diagnostics and a 64-bit hash over physical state, body geometry/materials and settings (excluding broadphase mode) in stable body-ID order.
+5. Generate sphere/sphere, sphere/oriented-box or rotated-box/rotated-box SAT contacts and static plane contacts. Box-box SAT checks 3+3 face axes plus 9 cross-product axes; near-zero cross axes are ignored. Face contacts use Sutherland–Hodgman clipping against reference side planes followed by deterministic reduction to four spread points; cross-axis edge contacts use either the legacy support-vertex midpoint (default) or an opt-in closest-support-edge segment midpoint. Segment degeneracy/parallel cases are covered by tests.
+6. If experimental Warm Starting is enabled, match one-to-one body-local anchors of previous contacts with a normal similarity gate and pre-apply half of valid prior impulses, re-projecting tangential impulses within a friction bound. This is not a stable feature-ID tracker.
+7. Solve normal and tangential contact impulses for a fixed number of iterations, applying angular Jacobian terms. Normal impulses are accumulated and projected to `>= 0`; friction impulses are projected to a Coulomb cone approximation `|jt| <= sqrt(μa μb) jn`. A velocity-level penetration bias and small mass-weighted positional correction help avoid sinking.
+8. Evict disappeared contacts and retain current impulses for the next experimental warm-start tick; emit summary diagnostics and a 64-bit hash over physical state, body geometry/materials and settings (excluding broadphase mode) in stable body-ID order.
 
 ## Normal impulse denominator
 
@@ -30,13 +31,13 @@ This is *not* a mathematically exact complementarity solver, an energy-conservin
 
 Identical source, compiler/runtime configuration, initial seed, body order and settings are expected to produce the same per-tick state hashes. Hash equality has actually been checked for deterministic replay and for the two broadphase algorithms on seeded scenes. No guarantee is made for **bitwise reproducibility across compilers, architectures or `-ffast-math` builds**. Collision detection output is sorted by numeric body ID so sorting implementation details do not reorder contacts.
 
-The hash is an integrity aid, not a cryptographic checksum or proof of correct physics. There is no network state replication, rollback, authoritative server reconciliation or joint/constraint solver.
+The hash is an integrity aid, not a cryptographic checksum or proof of correct physics. There is no network state replication, rollback, authoritative server reconciliation or joint/constraint solver. With Warm Starting enabled, the hash includes cached impulses and new solver flags; with the option off, archived V0.2 and V0.3 agree in the six recorded cold regression cases when comparing body states rather than hash format.
 
 ## Known limitations / failure modes
 
 - **Partial CCD only:** opt-in downward sphere sweeps against the highest horizontal plane prevent one well-defined tunneling case. Fast sphere/sphere, sphere/box, box/box and mesh contacts can still tunnel; general multi-contact TOI processing is absent.
-- **Partial OBB-OBB manifold:** 15-axis SAT with clipped face contact patches, up to four deterministic points. Edge-edge still uses a midpoint approximation; there is no persistent warm starting. Stacked boxes may still jitter, drift or settle artificially.
-- **No sleeping/islands/warm starting:** high resting-contact counts waste CPU; no production scalability claim.
+- **Partial OBB-OBB manifold:** 15-axis SAT with clipped face contact patches, up to four deterministic points. Experimental edge witnesses remain a midpoint *between closest edge points* and are not independently validated. Persistent Warm Starting is experimental and disabled by default. Stacked boxes may still jitter, drift or settle artificially.
+- **No sleeping/islands:** high resting-contact counts waste CPU; experimental warm starting has mixed ablation results and is disabled by default.
 - **Simplified friction and correction:** no torsional/rolling friction, material mixing calibration or angular position correction.
 - **No high-performance spatial tree or SIMD:** SAP sorts on every tick and O(n²) brute force is only an oracle/comparator. SAP can be slower for dense/stacked scenes (see measured evidence).
 - **One horizontal ground plane type:** not triangle meshes, heightfields or general static polygon soups.

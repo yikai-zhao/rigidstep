@@ -18,7 +18,9 @@ struct Options {
     std::string command="demo", scene="rain", broadphase="sap", out="frames.jsonl";
     std::size_t bodies=64, frames=360, repeats=5;
     std::uint32_t seed=11;
-    bool sphere_plane_ccd=false;
+    bool sphere_plane_ccd=false, warm_starting=false, precise_edge_contacts=false;
+    bool contact_overlay=false;
+    std::size_t iterations=16;
 };
 Options parse(int argc,char** argv) {
     Options o;
@@ -34,28 +36,55 @@ Options parse(int argc,char** argv) {
         else if(k=="--frames") o.frames=std::stoul(v);
         else if(k=="--repeats") o.repeats=std::stoul(v);
         else if(k=="--seed") o.seed=std::stoul(v);
+        else if(k=="--iterations") o.iterations=std::stoul(v);
+        else if(k=="--contact-overlay") {
+            if(v!="on" && v!="off") throw std::invalid_argument("--contact-overlay on|off");
+            o.contact_overlay=(v=="on");
+        }
+        else if(k=="--edge-contact") {
+            if(v!="on" && v!="off") throw std::invalid_argument("--edge-contact on|off");
+            o.precise_edge_contacts=(v=="on");
+        }
+        else if(k=="--warm-start") {
+            if(v!="on" && v!="off") throw std::invalid_argument("--warm-start on|off");
+            o.warm_starting=(v=="on");
+        }
         else if(k=="--sphere-plane-ccd") {
             if(v!="on" && v!="off") throw std::invalid_argument("--sphere-plane-ccd on|off");
             o.sphere_plane_ccd=(v=="on");
         }
         else throw std::invalid_argument("unknown option: "+k);
     }
-    if(o.frames<1 || o.frames>200000 || o.repeats<1 || o.repeats>1000)
+    if(o.frames<1 || o.frames>200000 || o.repeats<1 || o.repeats>1000 || o.iterations<1 || o.iterations>100)
         throw std::invalid_argument("frames/repeats out of allowed range");
     if(o.broadphase!="sap" && o.broadphase!="brute")
         throw std::invalid_argument("--broadphase must be sap or brute");
     return o;
 }
 Settings options_settings(const Options& o) {
-    Settings s; s.sphere_plane_ccd=o.sphere_plane_ccd; s.broadphase=o.broadphase=="sap"?Broadphase::SweepAndPrune:Broadphase::BruteForce;
+    Settings s; s.sphere_plane_ccd=o.sphere_plane_ccd;
+    s.warm_starting=o.warm_starting;s.precise_edge_contacts=o.precise_edge_contacts;s.solver_iterations=o.iterations; s.broadphase=o.broadphase=="sap"?Broadphase::SweepAndPrune:Broadphase::BruteForce;
     return s;
 }
 void vec(std::ostream& out, Vec3 v) {out<<'['<<v.x<<','<<v.y<<','<<v.z<<']';}
 void quat(std::ostream& out,Quat q) {out<<'['<<q.w<<','<<q.x<<','<<q.y<<','<<q.z<<']';}
-void emit_frame(std::ostream& f,std::size_t tick,const World& w,const StepStats& s) {
+const char* feature_name(ContactFeature f) {
+    switch(f) {
+      case ContactFeature::SphereSphere:return "sphere-sphere";
+      case ContactFeature::SphereBox:return "sphere-box";
+      case ContactFeature::BoxFace:return "box-face";
+      case ContactFeature::BoxEdge:return "box-edge";
+      case ContactFeature::Ground:return "ground";
+    }
+    return "unknown";
+}
+void emit_frame(std::ostream& f,std::size_t tick,const World& w,const StepStats& s,
+                bool contact_overlay) {
     f<<"{\"tick\":"<<tick<<",\"dt\":"<<w.settings().dt
      <<",\"hash\":\""<<std::hex<<s.state_hash<<std::dec<<"\",\"candidates\":"<<s.candidates
-     <<",\"contacts\":"<<s.contacts<<",\"max_penetration\":"<<s.max_penetration<<",\"energy\":"<<s.kinetic_energy<<",\"bodies\":[";
+     <<",\"contacts\":"<<s.contacts<<",\"edge_contacts\":"<<s.edge_contacts
+     <<",\"face_contacts\":"<<s.face_contacts<<",\"warm_matched\":"<<s.matched_contacts
+     <<",\"warm_applied\":"<<s.warm_started_contacts<<",\"cached_contacts\":"<<s.cached_contacts<<",\"max_penetration\":"<<s.max_penetration<<",\"energy\":"<<s.kinetic_energy<<",\"bodies\":[";
     bool first=true;
     for(const auto& b:w.bodies()) {
         if(b.shape==Shape::Plane) continue;
@@ -69,7 +98,23 @@ void emit_frame(std::ostream& f,std::size_t tick,const World& w,const StepStats&
         else {f<<",\"half\":";vec(f,b.half_extents);}
         f<<'}';
     }
-    f<<"]}\n";
+    f<<']';
+    if(contact_overlay) {
+        // These geometry probes are evaluated at the *serialized end-of-step*
+        // configuration. They are deliberately distinct from pre-solve StepStats.
+        f<<",\"contact_snapshot\":[";
+        bool first_contact=true;
+        for(const auto& c:w.collision_contacts()) {
+            if(!first_contact) f<<',';
+            first_contact=false;
+            f<<"{\"a\":"<<c.a<<",\"b\":"<<c.b
+             <<",\"feature\":\""<<feature_name(c.feature)<<"\",\"p\":";
+            vec(f,c.point);f<<",\"n\":";vec(f,c.normal);
+            f<<",\"depth\":"<<c.penetration<<'}';
+        }
+        f<<']';
+    }
+    f<<"}\n";
 }
 double percentile(std::vector<double> data,double fraction) {
     std::sort(data.begin(),data.end());
@@ -84,15 +129,17 @@ void demo(const Options& o) {
     std::ofstream f(o.out);
     if(!f) throw std::runtime_error("cannot create output: "+o.out);
     f<<std::setprecision(17);
-    emit_frame(f,0,w,StepStats{0,0,0,0,w.state_hash()});
-    std::size_t max_contacts=0;
+    emit_frame(f,0,w,StepStats{0,0,0,0,w.state_hash()},o.contact_overlay);
+    std::size_t max_contacts=0,total_warm_applied=0;
     for(std::size_t tick=1;tick<=o.frames;++tick) {
         const StepStats s=w.step();
         max_contacts=std::max(max_contacts,s.contacts);
-        emit_frame(f,tick,w,s);
+        total_warm_applied+=s.warm_started_contacts;
+        emit_frame(f,tick,w,s,o.contact_overlay);
     }
     std::cout<<"scene="<<o.scene<<" bodies="<<o.bodies<<" ticks="<<o.frames
-             <<" dt="<<w.settings().dt<<" max_contacts="<<max_contacts<<" final_state_hash="
+             <<" dt="<<w.settings().dt<<" max_contacts="<<max_contacts
+             <<" warm_applied_total="<<total_warm_applied<<" final_state_hash="
              <<std::hex<<w.state_hash()<<std::dec<<" frames="<<o.out<<'\n';
 }
 void benchmark(const Options& o) {
@@ -134,7 +181,7 @@ int main(int argc,char** argv) {
         else if(o.command=="benchmark") benchmark(o);
         else if(o.command=="--help" || o.command=="help") {
             std::cout<<"rigidstep demo|benchmark [--scene rain|stack|sparse] [--bodies N] "
-                        "[--frames N] [--seed N] [--broadphase sap|brute] [--sphere-plane-ccd on|off] [--repeats N] [--out PATH]\n";
+                        "[--frames N] [--seed N] [--broadphase sap|brute] [--sphere-plane-ccd on|off] [--warm-start on|off] [--edge-contact on|off] [--contact-overlay on|off] [--iterations N] [--repeats N] [--out PATH]\n";
         } else throw std::invalid_argument("unknown command: "+o.command);
     } catch(const std::exception& e) {
         std::cerr<<"error: "<<e.what()<<'\n';return 2;
