@@ -21,6 +21,10 @@ jobs:
           python3 scripts/benchmark_report.py /tmp/rigidstep-bench.csv
       - name: Adversarial trace parser tests
         run: python3 -m unittest discover -s tests -p test_trace_validator.py -v
+      - name: Independent WebGL geometry and trace invariants
+        run: |
+          node --check viewer/gpu.mjs
+          node --test tests/test_viewer.mjs
       - name: Archived V0.2 cold-path regression
         run: |
           g++ -std=c++20 -O2 -DRIGIDSTEP_BUILD_LEGACY=1 -I include apps/rigidstep.cpp benchmarks/legacy-v02/physics.cpp -o build/rigidstep-v02

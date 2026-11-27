@@ -1,87 +1,22 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RigidStep — Simulation Trace Viewer</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RigidStep | WebGL2 Physics Debugger</title>
 <style>
-:root {color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#080e1c;color:#e9eef8}
-*{box-sizing:border-box}body{margin:0}header{display:flex;align-items:center;justify-content:space-between;padding:17px 25px;border-bottom:1px solid #202b42;background:#0c1527}
-.brand{font-weight:800;letter-spacing:-.035em;font-size:22px}.brand span{color:#62d8c6}.sub{font-size:12px;color:#91a1bb;margin-top:4px}
-button,.picker{cursor:pointer;background:#17263c;border:1px solid #384862;color:#f0f5ff;padding:8px 13px;border-radius:8px;font-size:13px}
-button:hover,.picker:hover{background:#223854}.picker input{display:none}main{display:grid;grid-template-columns:minmax(0,1fr) 258px;max-width:1600px;margin:auto;min-height:calc(100vh - 76px)}
-.stage{padding:15px 21px 22px;min-width:0}.viewport{position:relative;aspect-ratio:16/10;max-height:75vh;overflow:hidden;border:1px solid #243653;border-radius:12px;background:radial-gradient(ellipse at 48% 35%,#14253b,#080f1d 70%)}
-canvas{width:100%;height:100%;display:block;cursor:grab}canvas:active{cursor:grabbing}
-.legend{position:absolute;top:15px;left:17px;font-size:12px;color:#afbfce;pointer-events:none;line-height:1.8}
-.controls{display:flex;align-items:center;gap:11px;padding-top:16px}.controls button{min-width:75px}.controls input[type=range]{flex:1;accent-color:#59d3bf}
-.side{padding:24px 20px;border-left:1px solid #202d43;background:#0d1628}h2{font-size:12px;text-transform:uppercase;letter-spacing:.13em;color:#8498b6;margin:0 0 17px}
-.metric{padding:13px 0;border-top:1px solid #23334b;display:flex;align-items:baseline;justify-content:space-between;gap:10px}.metric label{color:#95a8c0;font-size:12px}.metric strong{font-size:15px;font-variant-numeric:tabular-nums}
-.hash{font:11px ui-monospace,monospace;overflow-wrap:anywhere;color:#5edac5}.help{font-size:12px;line-height:1.75;color:#93a5bc;margin-top:25px}
-#notice{font-size:12px;color:#8dadd0;margin-top:11px;min-height:18px}
-@media(max-width:850px){main{display:block}.side{border-left:0;border-top:1px solid #202d43}.stage{padding:10px}.viewport{aspect-ratio:4/3}header{padding:15px}}
+:root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;color:#ecf2fa;background:#080f1b}*{box-sizing:border-box}
+body{margin:0}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #26364a;background:#0b1727;padding:17px 24px}
+.brand{font-size:23px;font-weight:800;letter-spacing:-.04em}.brand em{font-style:normal;color:#55d6b9}.description{font-size:12px;color:#9badc4;margin-top:4px}
+a{color:#72d6bf}button,.picker{padding:9px 13px;background:#173047;border:1px solid #38536b;color:#edf6ff;border-radius:8px;cursor:pointer;font-size:13px}.picker input{display:none}
+main{max-width:1500px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr) 275px;min-height:calc(100vh - 77px)}.stage{padding:18px;min-width:0}
+.viewport{position:relative;height:min(67vh,740px);min-height:430px;border:1px solid #2b3e54;border-radius:12px;overflow:hidden;background:#08121f}
+canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}.hud{position:absolute;pointer-events:none;top:16px;left:17px;color:#b0c4d8;font-size:12px;line-height:1.8}
+.toolbar{display:flex;gap:12px;align-items:center;margin-top:16px}.toolbar input[type=range]{flex:1;accent-color:#52d6bf;min-width:60px}.toolbar label{font-size:12px;white-space:nowrap}
+aside{padding:25px 20px;border-left:1px solid #26384f;background:#0d1a2c}h2{font-size:12px;letter-spacing:.12em;color:#8eabc6;text-transform:uppercase;margin:0 0 18px}
+.metric{display:flex;justify-content:space-between;border-top:1px solid #26394e;padding:13px 0;gap:14px;font-size:12px}.metric strong{font-size:14px;font-variant-numeric:tabular-nums}.muted{color:#a1b3c8}.hash{overflow-wrap:anywhere;font-size:11px;font-family:ui-monospace,monospace;color:#6ed9c3}
+#status{font-size:12px;line-height:1.5;color:#b3c8dd;padding-top:11px}.note{font-size:12px;line-height:1.7;color:#9aaec5;margin-top:24px}
+@media(max-width:900px){main{display:block}aside{border-left:0;border-top:1px solid #26384f}.stage{padding:10px}.viewport{height:56vh;min-height:300px}.toolbar{flex-wrap:wrap}header{padding:12px}}
 </style></head><body>
-<header><div><div class="brand">Rigid<span>Step</span> <small style="font-size:11px;color:#91a1bb;vertical-align:middle">TRACE VIEWER</small></div><div class="sub">Dependency-free 3D projection of C++ rigid-body simulation traces</div></div><label class="picker">Open JSONL trace<input type="file" id="file" accept=".jsonl,.txt,application/json"></label></header>
-<main><section class="stage"><div class="viewport"><canvas id="canvas"></canvas><div class="legend">Drag to orbit · Scroll to zoom<br>Blue: spheres · Teal: boxes · Contact vectors: red/orange/purple</div></div>
-<div class="controls"><button id="play">▶ Play</button><input type="range" id="seek" min="0" max="0" value="0"><span id="time" style="font-size:12px;color:#9babc2;font-variant-numeric:tabular-nums;min-width:104px">0 / 0</span><button id="speed">1×</button><label style="font-size:12px;color:#b8c9df;white-space:nowrap"><input id="showContacts" type="checkbox" checked> Contact normals</label></div><div id="notice">Loading bundled demonstration where available. You can also open a trace generated by the CLI.</div></section>
-<aside class="side"><h2>Simulation diagnostics</h2><div class="metric"><label>Frame</label><strong id="frame">—</strong></div><div class="metric"><label>Bodies</label><strong id="bodies">—</strong></div><div class="metric"><label>Broadphase pairs</label><strong id="pairs">—</strong></div><div class="metric"><label>Contacts (pre-solve)</label><strong id="contacts">—</strong></div><div class="metric"><label>Edge / face (pre-solve)</label><strong id="features">—</strong></div><div class="metric"><label>Snapshot contacts</label><strong id="snapshots">—</strong></div><div class="metric"><label>Kinetic energy</label><strong id="energy">—</strong></div><div class="metric"><label>Pre-solve max penetration</label><strong id="penetration">—</strong></div><div class="metric"><label>Tick rate</label><strong id="tickRate">120 Hz</strong></div><h2 style="margin-top:24px">Deterministic state hash</h2><div class="hash" id="hash">—</div><p class="help">This viewer replays a saved simulation trace; it does not run the physics solver in JavaScript. The C++ engine exports every state and diagnostic. Face-face contacts are clipped to at most four points; optional experimental edge witnesses and warm starting are off by default; this is a performance/correctness research prototype, not a production-grade game physics engine.</p></aside></main>
-<script>
-'use strict';
-const cv=document.getElementById('canvas'),ctx=cv.getContext('2d');
-const $=id=>document.getElementById(id);
-let frames=[],index=0,playing=false,playback=1,last=0,acc=0,yaw=.75,pitch=.34,distance=25,drag=null;
-const vec=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
-const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-const normal=a=>{const l=Math.hypot(...a)||1;return a.map(v=>v/l)};
-const plus=(a,b)=>a.map((x,i)=>x+b[i]);
-const scale=(a,s)=>a.map(x=>x*s);
-function quaternionRotate(q,v){const t=scale(cross([q[1],q[2],q[3]],v),2);return plus(plus(v,scale(t,q[0])),cross([q[1],q[2],q[3]],t))}
-function camera(w,h){const target=[0,1.3,0],pos=[distance*Math.sin(yaw)*Math.cos(pitch),target[1]+distance*Math.sin(pitch),distance*Math.cos(yaw)*Math.cos(pitch)];
- const forward=normal(vec(target,pos)),right=normal(cross(forward,[0,1,0])),up=normal(cross(right,forward)),focus=Math.min(w,h)*1.18;
- return point=>{const p=vec(point,pos),z=dot(p,forward);return z>.05?{x:w/2+dot(p,right)*focus/z,y:h/2-dot(p,up)*focus/z,z,focus}:null};}
-function line(p,q,color,width=1){if(!p||!q)return;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke()}
-const EDGE=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
-function draw(){const rect=cv.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1),w=rect.width,h=rect.height;
- if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr)}
- ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
- const project=camera(w,h);
- for(let n=-16;n<=16;n+=2){line(project([-16,0,n]),project([16,0,n]),'rgba(82,115,145,.2)');line(project([n,0,-16]),project([n,0,16]),'rgba(82,115,145,.2)')}
- line(project([0,0,0]),project([2,0,0]),'rgba(241,119,114,.65)',2);line(project([0,0,0]),project([0,2,0]),'rgba(128,221,156,.8)',2);line(project([0,0,0]),project([0,0,2]),'rgba(102,162,251,.75)',2);
- const frame=frames[index];if(!frame)return;
- const bodies=frame.bodies.map(b=>({b,dist:project(b.p)?.z??0})).sort((a,b)=>b.dist-a.dist);
- for(const {b} of bodies){if(b.type==='sphere') {const p=project(b.p);if(!p)continue;const r=Math.max(.4,p.focus*b.radius/p.z);
- const grad=ctx.createRadialGradient(p.x-r*.3,p.y-r*.4,r*.05,p.x,p.y,r);grad.addColorStop(0,'#95c4ff');grad.addColorStop(1,'#4265ba');ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();ctx.strokeStyle='#adcbfa';ctx.lineWidth=.7;ctx.stroke();
- } else {const [x,y,z]=b.half,vertices=[];for(let i=0;i<8;i++){
- const local=[(i&1)?x:-x,(i&2)?y:-y,(i&4)?z:-z];vertices.push(project(plus(b.p,quaternionRotate(b.q,local))));}
- ctx.fillStyle='rgba(39,199,171,.13)';for(const face of [[0,1,3,2],[4,5,7,6],[0,1,5,4],[2,3,7,6],[0,2,6,4],[1,3,7,5]]){if(face.some(i=>!vertices[i]))continue;ctx.beginPath();face.forEach((i,j)=>j?ctx.lineTo(vertices[i].x,vertices[i].y):ctx.moveTo(vertices[i].x,vertices[i].y));ctx.closePath();ctx.fill()}
- for(const [a,c] of EDGE) line(vertices[a],vertices[c],'#6dddc9',1.35);
- }}
- if($('showContacts').checked && Array.isArray(frame.contact_snapshot)) {
-  for(const c of frame.contact_snapshot) {
-   const point=project(c.p);
-   if(!point) continue;
-   const col=c.feature==='box-edge'?'#f8b95d':c.feature==='ground'?'#df9bf7':'#ff6674';
-   const length=Math.max(.2,Math.min(.6,.2+(c.depth||0)));
-   line(point,project(plus(c.p,scale(c.n,length))),col,2.2);
-   ctx.fillStyle=col;ctx.beginPath();ctx.arc(point.x,point.y,2.3,0,Math.PI*2);ctx.fill();
-  }
- }
-}
-function update(){const f=frames[index];if(!f)return;$('seek').max=String(frames.length-1);$('seek').value=String(index);$('time').textContent=`${index} / ${frames.length-1}`;
- $('frame').textContent=String(f.tick);$('bodies').textContent=String(f.bodies.length);$('pairs').textContent=String(f.candidates);$('contacts').textContent=String(f.contacts);
- $('features').textContent=(f.edge_contacts??'—')+' / '+(f.face_contacts??'—');
- $('snapshots').textContent=Array.isArray(f.contact_snapshot)?String(f.contact_snapshot.length):'not captured';
- $('energy').textContent=Number(f.energy).toFixed(3);$('penetration').textContent=Number(f.max_penetration??0).toFixed(5)+' m';$('tickRate').textContent=Math.round(1/f.dt)+' Hz';$('hash').textContent=f.hash;draw()}
-function load(text,name){const lines=text.split(/\r?\n/).filter(Boolean);if(lines.length>50000)throw Error('Trace too large (50,000 frames max)');
- const next=lines.map((line,i)=>{const f=JSON.parse(line);if(!Array.isArray(f.bodies)||!Number.isFinite(f.dt)||f.dt<=0)throw Error(`Invalid trace frame ${i}`);return f});
- if(!next.length)throw Error('Trace contains no frames');frames=next;index=0;playing=false;$('play').textContent='▶ Play';$('notice').textContent=`Loaded ${name} · ${frames.length} frames`;update()}
-$('file').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>40e6)throw Error('Trace exceeds 40 MB');load(await file.text(),file.name)}catch(err){$('notice').textContent=err.message}});
-$('play').addEventListener('click',()=>{playing=!playing;$('play').textContent=playing?'Ⅱ Pause':'▶ Play'});
-$('seek').addEventListener('input',e=>{index=Number(e.target.value);update()});
-$('showContacts').addEventListener('change',draw);
-$('speed').addEventListener('click',()=>{playback=playback===1?2:playback===2?.25:playback===.25?.5:1;$('speed').textContent=playback+'×'});
-cv.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];cv.setPointerCapture(e.pointerId)});
-cv.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.007;pitch=Math.max(-1.3,Math.min(1.3,pitch+(e.clientY-drag[1])*.005));drag=[e.clientX,e.clientY];draw()});
-cv.addEventListener('pointerup',()=>drag=null);
-cv.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(5,Math.min(75,distance*Math.exp(e.deltaY*.001)));draw()},{passive:false});
-window.addEventListener('resize',draw);
-function loop(t){if(last&&playing&&frames.length){acc+=(t-last)/1000*playback;const dt=frames[0].dt;let steps=0;while(acc>=dt&&steps<32){acc-=dt;index++;steps++;if(index>=frames.length){index=frames.length-1;playing=false;$('play').textContent='▶ Play';break}}if(steps)update()}last=t;requestAnimationFrame(loop)}requestAnimationFrame(loop);
-fetch('demo.jsonl').then(r=>{if(!r.ok)throw Error('sample unavailable');return r.text()}).then(text=>load(text,'bundled demo')).catch(()=>$('notice').textContent='Select a JSONL trace. For the sample, serve this folder with: python3 -m http.server 8000');
-</script></body></html>
+<header><div><div class="brand">Rigid<em>Step</em> <span class="muted" style="font-size:11px;vertical-align:middle">GPU TRACE VIEWER</span></div><div class="description">WebGL2 line rendering · C++20 fixed-timestep physics · deterministic recorded traces</div></div><label class="picker">Open JSONL trace<input id="file" type="file" accept=".jsonl,.txt,application/json"></label></header>
+<main><section class="stage"><div class="viewport"><canvas id="view"></canvas><div class="hud">Drag to orbit · Scroll to zoom<br>Teal: OBB · Blue: sphere · Red/yellow/purple: contact normals</div></div>
+<div class="toolbar"><button id="play">▶ Play</button><input id="seek" type="range" min="0" max="0" value="0"><span id="tick" class="muted" style="font-size:12px;min-width:80px">0 / 0</span><button id="speed">1×</button><label><input id="showContacts" type="checkbox" checked> Contacts</label></div>
+<div id="status" role="status">Loading the checked-in C++ trace…</div></section>
+<aside><h2>Simulation diagnostics</h2><div class="metric"><span class="muted">Rendering API</span><strong id="gpu">—</strong></div><div class="metric"><span class="muted">Bodies</span><strong id="bodyCount">—</strong></div><div class="metric"><span class="muted">Broadphase candidates</span><strong id="candidates">—</strong></div><div class="metric"><span class="muted">Solver contacts</span><strong id="contacts">—</strong></div><div class="metric"><span class="muted">Rendered line segments</span><strong id="drawLines">—</strong></div><div class="metric"><span class="muted">Kinetic energy</span><strong id="energy">—</strong></div><h2 style="margin-top:28px">Deterministic state hash</h2><div id="hash" class="hash">—</div>
+<p class="note">Actual GPU rasterization is performed by WebGL2. Physics does <b>not</b> run in this page: the viewer displays recorded C++ states, not a coupled real-time game loop. See the <a href="canvas.html">Canvas fallback viewer</a>, <a href="../docs/V04_REFERENCE_AND_GPU.md">validation scope</a> and <a href="../README.md">repository</a>.</p></aside></main>
+<script type="module" src="./gpu.mjs"></script></body></html>

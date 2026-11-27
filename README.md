@@ -2,11 +2,11 @@
 
 [![C++ correctness](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml/badge.svg)](https://github.com/yikai-zhao/rigidstep/actions/workflows/ci.yml)
 
-**Real-time C++20 3D rigid-body physics and performance lab (V0.3).** A small, readable simulation core with sphere/rotated-box collision handling, a fixed-timestep sequential-impulse solver, replayable state traces, an offline 3D projection viewer, and measured broadphase trade-offs.
+**Real-time C++20 3D rigid-body physics and performance lab (V0.4).** A small, readable simulation core with sphere/rotated-box collision handling, a fixed-timestep sequential-impulse solver, replayable state traces, a dependency-free WebGL2 GPU trace viewer, independent analytic validation, and measured broadphase trade-offs.
 
 **Why this exists:** Real-time physics engines must trade numerical stability, frame-time budgets, collision-query cost, and deterministic testability. RigidStep builds and measures a concrete subset of that problem rather than wrapping an existing game engine and calling it original engine work.
 
-> **Scope:** This is an engine research prototype, **not** Roblox's engine, a high-fidelity physics engine, or a general production simulator. OBB face contact uses clipped manifolds (up to four points), but edge-edge contact remains an approximate single point; **optional CCD handles downward-moving spheres against horizontal ground only**. General CCD, constraints/joints, sleeping, and GPU rendering are not implemented. **Warm starting and exact segment-edge witnesses are experimental opt-ins, not stable improvements.** Benchmarks are one Linux-container observation, not universal performance claims.
+> **Scope:** This is an engine research prototype, **not** Roblox's engine, a high-fidelity physics engine, or a general production simulator. OBB face contact uses clipped manifolds (up to four points), but edge-edge contact remains an approximate single point; **optional CCD handles downward-moving spheres against horizontal ground only**. General CCD, constraints/joints, and sleeping are not implemented. The WebGL2 viewer draws recorded simulation traces on the GPU, but is not a live coupled C++ engine renderer or a custom Vulkan/Metal/DirectX backend. **Warm starting and exact segment-edge witnesses are experimental opt-ins, not stable improvements.** Benchmarks are one Linux-container observation, not universal performance claims.
 
 ## Quick start (CMake, C++20; no third-party runtime dependencies)
 
@@ -36,9 +36,12 @@ python3 scripts/verify_trace.py contact-debug.jsonl
 
 On Windows / MSVC, the executable normally lives under `build/Release/`. All core physics is standard C++20; Linux GCC and AddressSanitizer+UBSan were run locally, while Windows cross-platform validation is run in GitHub Actions (see the live workflow status above).
 
-## Interactive trace viewer
+## WebGL2 GPU trace viewer (V0.4)
 
-Run `python3 -m http.server 8000` from the repository root and visit **http://localhost:8000/viewer/**. The page automatically loads a checked-in 14-body demonstration (`viewer/demo.jsonl`). Alternatively open `viewer/index.html` and select any `frames.jsonl` using **Open JSONL trace**. Drag to orbit, scroll to zoom, scrub and pause the timeline. When traces are generated with `--contact-overlay on`, toggle the rendered contact points/normals, with separate pre-solve and end-of-frame counters. The viewer is a lightweight 3D wireframe/projection *of recorded states*, not a JavaScript physics solver or GPU renderer.
+Run `python3 -m http.server 8000` from the repository root and visit **http://localhost:8000/viewer/**. The default viewer now uses **actual WebGL2 GPU line rasterization** (not the old Canvas 2D projection) and automatically loads a checked-in C++ trace (`viewer/demo.jsonl`). Open your own `frames.jsonl` via **Open JSONL trace**. Drag to orbit, scroll to zoom, scrub the timeline or toggle colored contact-normal overlays. If WebGL2 is unavailable, use the retained [Canvas fallback](viewer/canvas.html).
+
+**Boundary:** The GPU renders a recorded C++ simulation, not a physics solver running in the browser, a live coupled 3D game engine, or a Vulkan/Metal/DirectX renderer. JavaScript controls playback and builds line segments; GLSL transforms and rasterizes vertices. A Node.js geometry/trace test suite checks mathematical and input invariants; actual WebGL browser visual QA requires a supported browser.
+
 
 ## What is implemented
 
@@ -50,8 +53,8 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 | Narrowphase | Sphere/sphere, sphere/OBB, 15-axis OBB SAT; face clipping up to 4 contacts, optional edge-segment witness | Face manifold, 800 rotated-box stress samples, segment-sampling oracle |
 | Dynamics | Fixed-step Euler, accumulated normal/friction impulses, angular motion; limited sphere-plane TOI; **experimental half-impulse warm start** | Momentum, bounce, negative/positive CCD controls, deterministic cache replay and on/off ablation |
 | Determinism | Seeded scenes, stable contact ordering, FNV-based state/config hashes (excluding broadphase mode) | Tick-by-tick seeded replays; algorithm parity |
-| Diagnostics | JSONL frame dump, optional labeled contact points/normals, CSV step-time stats | Structural and finite-normal trace validator, paired hash gate, HTML projection viewer |
-| Quality | CTest, GCC/Clang warnings, ASan+UBSan, Linux/Windows CI matrix | Local 21-suite tests; hosted CI only claimed after verifying the run |
+| Diagnostics & GPU | JSONL frame dump, labeled contact normals, CSV step times, dependency-free WebGL2 GPU trace viewer | Strict trace validator, JS geometry tests, paired hash gate; browser visual validation separately required |
+| Quality | CTest, GCC/Clang warnings, ASan+UBSan, Linux/Windows CI matrix, independent reference program | Legacy and analytic C++ tests, Node.js geometry tests; inspect live CI for final status |
 
 ## V0.2: face manifold + narrowly scoped continuous collision handling
 
@@ -71,6 +74,19 @@ Run `python3 -m http.server 8000` from the repository root and visit **http://lo
 - **Multi-variant ablation:** 36 complete warm-start pairs across training and independently chosen holdout seeds/sizes, plus 12 edge-witness pairs (only six had actual edge features; the other six were proven exactly trajectory-invariant). The outcomes are mixed; **no blanket physical-accuracy or performance improvement is claimed**.
 
 **Commands:** `--warm-start on|off`, `--edge-contact on|off`, and `--contact-overlay on|off` (default off). Details, re-run commands and counterexamples: [V0.3 Audit](docs/V03_AUDIT.md). All raw summary CSVs and source/binary SHA-256 identities are in `evidence/`.
+
+## V0.4: independent analytic oracles and WebGL2 rendering
+
+- Added **independent reference tests** for semi-implicit ballistic motion, closed-form unequal-mass elastic collisions, eight-corner rotated-box AABBs, and sphere-vs-OBB closest-point classification. These check the same outputs against independent mathematics instead of merely comparing two solver implementations. See [method and limitations](docs/V04_REFERENCE_AND_GPU.md).
+- Added an actual **WebGL2 GPU-rendered** trajectory debugger with perspective camera, quaternion box transformations, sphere wireframes, contact-normal vectors, file import and scrub/playback controls. The previous projection-only viewer is retained as `viewer/canvas.html`.
+- Updated CI to compile/run the new C++ reference executable on Linux, Windows, and under ASan/UBSan, and to run Node.js trace geometry tests on Linux. This does **not** claim comparative accuracy against Bullet/Jolt or production graphics throughput.
+
+```bash
+ctest --test-dir build --output-on-failure
+node --test tests/test_viewer.mjs
+python3 -m http.server 8000
+# In a browser: http://localhost:8000/viewer/
+```
 
 ## Measured performance — no cherry-picking
 
